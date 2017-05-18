@@ -1,0 +1,13 @@
+{
+  "name": "neato-controller",
+  "version": "0.0.1",
+  "private": true,
+  "description": "multiple PS3 controller client for neato robot",
+  "main": "neato-controller.js",
+  "author": "Tim Lee <tlee732o@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "dualshock-controller": "^0.6.9",
+    "socket.io": "^1.4.8"
+  }
+}
