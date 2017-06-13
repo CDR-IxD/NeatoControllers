@@ -8,11 +8,13 @@ inputs to the server
 Author: tlee
 Notes:
     first release 5/17/17
+    add array for storing x and y 6/1/17
 *************************************************************/
 
 const HID = require('node-hid');
 var dualShock = require('dualshock-controller');
-var socket = require('socket.io-client')('http://localhost:3000');
+//var socket = require('socket.io-client')('http://localhost:3000');
+var socket = require('socket.io-client')('http://ubuntu-cdr.local:3000');
 
 // values for dual-shock 3
 const vendorId = 1356;
@@ -21,16 +23,17 @@ const productId = 616;
 // global vars for direction and speed
 var LWheelDist = 0;
 var RWheelDist = 0;
-var speed = 0;
-var turnSpeed = 0;
-var turnEffort = 0;
-var x = 0; var y = 0; //placeholders to determine direction
 const DIST = 10000;  //infinite distance to drive
 
 // arrays to store neatos and controllers
 
 var speed_multiplier=[];
 var controllers=[];
+var speed=[];
+var turnSpeed=[];
+var turnEffort=[];
+var x=[];
+var y=[];
 
 /*******************************Server Functions*******************************/
 
@@ -81,45 +84,70 @@ var bindHandlers = function(indexNumber) {
   // left controller : used for foward/backward driving & speed
   controllers[controllerNumber].on('left:move', function(data) {
     console.log('left:', data);
-    speed = data.y * (-350/128) + 350;
-    y = -1*Math.sign(speed);  // direction of travel
-    speed = Math.abs(speed); //speed is always positive for drive commands
+    speed[indexNumber] = (data.y - 127)*350/127;
+    y[indexNumber] = Math.sign(speed[indexNumber]);  // direction of travel
+    speed[indexNumber] = Math.abs(speed[indexNumber]); //speed is always positive for drive commands
     sendDriveMessage(indexNumber);
   });
 
   //right controller : used for left right control
   controllers[controllerNumber].on('right:move', function(data) {
     console.log('right:', data);
-    x = Math.sign(data.x - 128);
-    turnSpeed = Math.abs(data.x * (350/128) - 350);  //speed is always positive
-    turnEffort = 1 - Math.abs((data.x - 128) / 128);  // % of the turn to take
+    x[indexNumber] = Math.sign(data.x - 127);
+    turnSpeed[indexNumber] = Math.abs(data.x - 127)*350/127;  //speed is always positive
+    turnEffort[indexNumber] = 1 - Math.abs((data.x - 127) / 127);  // % of the turn to take
     sendDriveMessage(indexNumber);
+  });
+
+  controllers[controllerNumber].on('l1:press', function(data){
+//    console.log('stopped');
+    speed[indexNumber] = 0;
+//    x[indexNumber] = 0;
+    y[indexNumber] = 0;
+//    turnSpeed[indexNumber] = 0;
+//    turnEffort[indexNumber] = 0;
+    sendDriveMessage(indexNumber);
+//      console.log('25% speed');
+//      speed_multiplier[indexNumber] = 0.25;
+  });
+
+  controllers[controllerNumber].on('r1:press', function(data){
+//    console.log('stopped');
+//    speed[indexNumber] = 0;
+    x[indexNumber] = 0;
+//    y[indexNumber] = 0;
+    turnSpeed[indexNumber] = 0;
+    turnEffort[indexNumber] = 0;
+    sendDriveMessage(indexNumber);
+//      console.log('25% speed');
+//      speed_multiplier[indexNumber] = 0.25;
   });
 
   //Functions to change the maximum speed of the robot
 
   //half speed
   controllers[controllerNumber].on('x:press', function(data){
-      console.log('25% speed');
+//      console.log('25% speed');
       speed_multiplier[indexNumber] = 0.25;
   });
 
+
   //half speed
   controllers[controllerNumber].on('circle:press', function(data){
-      console.log('50% speed');
+//      console.log('50% speed');
       speed_multiplier[indexNumber] = 0.5;
   });
 
   // 75% speed
   controllers[controllerNumber].on('triangle:press', function(data){
-      console.log('75% speed');
+//      console.log('75% speed');
       speed_multiplier[indexNumber] = .75;
   });
 
   //reset speed multiplier to 1
   // square is full speed
   controllers[controllerNumber].on('square:press', function(data){
-      console.log('100% speed');
+//      console.log('100% speed');
       speed_multiplier[indexNumber] = 1;
   });
 };
@@ -128,17 +156,17 @@ var bindHandlers = function(indexNumber) {
 function sendDriveMessage(neatoNumber) {
   var l,r;
   // if y is 0 then pivot in place
-  if (y == 0) {
+  if (y[neatoNumber] == 0) {
     // turn left
-    if (x < 0) {
+    if (x[neatoNumber] < 0) {
       l = -1;
       r = 1;
-      speed = turnSpeed;
+      speed[neatoNumber] = turnSpeed[neatoNumber];
     }
-    else if (x > 0 ) {
+    else if (x[neatoNumber] > 0 ) {
       l = 1;
       r = -1;
-      speed = turnSpeed;
+      speed[neatoNumber] = turnSpeed[neatoNumber];
     }
     else {
       l = 0;
@@ -149,38 +177,38 @@ function sendDriveMessage(neatoNumber) {
   }
 
   // y > 0 drive forward
-  else if (y > 0) {
+  else if (y[neatoNumber] > 0) {
     l = 1;
     r = 1;
 
     // turn the robot slightly based on the turn effort
     //console.log(turnSpeed);
     // slight left
-    console.log("turnEffort:", turnEffort);
-    if (x < 0) {
-      r = r * turnEffort;
+    console.log("turnEffort:", turnEffort[neatoNumber]);
+    if (x[neatoNumber] < 0) {
+      r = r * turnEffort[neatoNumber];
       //l = l * (turnEffort * 0.8);
     }
-    else if (x > 0) {
-      l = l * turnEffort;
+    else if (x[neatoNumber] > 0) {
+      l = l * turnEffort[neatoNumber];
       //r = r * (turnEffort * 0.8);
     }
   }
 
-  else if (y < 0) {
+  else if (y[neatoNumber] < 0) {
     l = -1;
     r = -1;
     // turn the robot slightly based on the turn effort
     //console.log(turnSpeed);
     // slight left
     //turnEffort = Math.abs(x / 128);
-    console.log("turnEffort:", turnEffort);
-    if (x < 0) {
-      r = r * turnEffort;
+//    console.log("turnEffort:", turnEffort[neatoNumber]);
+    if (x[neatoNumber] < 0) {
+      r = r * turnEffort[neatoNumber];
       //l = l * (turnEffort * 0.8);
     }
-    else if (x > 0) {
-      l = l * turnEffort;
+    else if (x[neatoNumber] > 0) {
+      l = l * turnEffort[neatoNumber];
       //r = r * (turnEffort * 0.8);
     }
   }
@@ -188,8 +216,11 @@ function sendDriveMessage(neatoNumber) {
   LWheelDist = l * DIST;
   RWheelDist = r * DIST;
   socket.emit('drive2Server', {'NeatoNumber': neatoNumber, 'LWheelDist':LWheelDist,
-    'RWheelDist':RWheelDist, 'Speed':speed*speed_multiplier[neatoNumber]});
+    'RWheelDist':RWheelDist, 'Speed':speed[neatoNumber]*speed_multiplier[neatoNumber]});
   console.log(speed_multiplier);
+//  console.log(x);
+//  console.log(y);
+  console.log(neatoNumber);
 }
 
 for (var controllerNumber = 0; controllerNumber<devices.length; controllerNumber++) {
@@ -207,6 +238,11 @@ for (var controllerNumber = 0; controllerNumber<devices.length; controllerNumber
       });
   // append the controller to the array
   controllers.push(controller);
-  speed_multiplier.push(1);  
+  speed_multiplier.push(1);
+  speed.push(0);
+  turnSpeed.push(0);
+  turnEffort.push(0);
+  x.push(0);
+  y.push(0);  
   bindHandlers(controllerNumber);
 };
